@@ -25,6 +25,7 @@ typedef struct instruct { //Format3. The others with unions.
     /* Sim related */
     //Instruction's string representation
     char *string;
+    struct instruct *next;
 } instruct;
 
 /**
@@ -39,10 +40,10 @@ void (*_exec_stages[6])(void);
 FILE *_src;
 
 // Current instruction in process
-instruct *_ci;
+instruct *_ci = NULL;
 
 //Instruction Queue
-instruct *_queue[20];
+instruct *_queue = NULL;
 
 void init(char *file_name);
 
@@ -74,6 +75,10 @@ int dec_reg(char *reg);
  */
 
 instruct *new_instruction();
+void del_instruction(instruct *in);
+int enqueue(instruct *in);
+void dequeue(instruct *in);
+void disp_queue();
 
 /**
  * Main
@@ -87,9 +92,12 @@ void *instruction_issue(void *arg)
 
     while (1) {
         _exec_stages[stage]();
-
+        disp_queue();
+        
+        //Loop logistics
         clk_cycle();
         stage = (stage + 1) % 6;
+        nreset(0);
     }
 }
 
@@ -104,6 +112,10 @@ void init(char *file_name)
 
     _src = fopen(file_name, "r");
     assert(_src != NULL);
+
+    _queue = new_instruction(); //sentinel node
+    _queue->i = 0; //number of instruction nodes
+    _queue->next = _queue;
 }
 
 void address_generation()
@@ -143,7 +155,6 @@ void instruction_decode()
     if (_ci == NULL)
         return;
 
-    nprintf(0, "%s\n", _ci->string);
     items = sscanf(_ci->string, "%s", cmd); 
     assert(items == 1);
 
@@ -153,8 +164,8 @@ void instruction_decode()
         assert(0);
     }
 
-//    void enqueue();
-    nprintf(0, "%d %d %d %d %d %d\n", _ci->op, _ci->rd, _ci->op3, _ci->rs1, _ci->i, _ci->rs2); 
+    if (!enqueue(_ci))
+       fprintf(stderr, "[IIU] queue is full\n"); 
 }
 
 void instruction_steer()
@@ -214,6 +225,7 @@ int dec_reg(char *reg)
 /**
  * helpers
  */
+
 instruct *new_instruction()
 {
     instruct *new;
@@ -230,4 +242,52 @@ instruct *new_instruction()
     new->string = NULL;
 
     return (new);
+}
+
+void del_instruction(instruct *in)
+{
+    free(in->string);
+    free(in);
+}
+
+int enqueue(instruct *in)
+{
+    instruct *it;
+
+    if (_queue->i > 19 || in == NULL) //queue is full
+        return 0;
+
+    for(it = _queue; it->next != _queue; it = it->next) {
+        if (it->next == in) //already in queue
+            return 1;
+    }
+    in->next = it->next;
+    it->next = in;
+    _queue->i++;
+
+    fprintf(stderr, "enqueued %s\n", in->string);
+
+    return 1;
+}
+
+void dequeue(instruct *in)
+{
+    instruct *it;
+
+    for(it = _queue; it->next != in; it = it->next);
+    it->next = in->next;
+    del_instruction(in);
+    _queue->i--;
+}
+
+void disp_queue()
+{
+    int i;
+    instruct *in;
+
+    in = _queue->next;
+    for (i = 0; i < _queue->i; i++) {
+        nprintf(0, "%d] %s\n", i, in->string);
+        in = in->next;
+    }
 }

@@ -61,17 +61,26 @@ void init_ncurses(int num, char **titles)
 #endif
 }
 
-void refresh_all()
+void nreset_all()
 {
 #ifndef NORMAL_OUTPUT
     int i;
     for(i = 0; i < g_num_of_wins; i++) {
+        werase(subwins[i]);
         touchwin(subwins[i]);
         wrefresh(subwins[i]);
     }
 #endif
 }
 
+void nreset(int w)
+{
+#ifndef NORMAL_OUTPUT
+    werase(subwins[w]);
+    wrefresh(subwins[w]);
+    wmove(subwins[w], 0, 0);
+#endif
+}
 
 void end_ncurses()
 {

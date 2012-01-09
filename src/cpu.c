@@ -38,7 +38,7 @@ int main(int argc, char **argv)
     /* Init User interface */
     init_ncurses(4, titles);
     //27=Esc
-    init_key_ctrls(3, 'r', refresh_all, 27, shutdown_cpu, ' ', pause_cpu);
+    init_key_ctrls(3, 'r', shutdown_cpu, 27, shutdown_cpu, ' ', pause_cpu);
 
     /* Init  variables */
     pthread_mutex_init(&clk_mtx, NULL);

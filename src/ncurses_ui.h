@@ -29,7 +29,17 @@ void init_ncurses(int num, char **titles);
  */
 void nprintf(int idx, char *fmt, ...);
 
-void refresh_all();
+/**
+ * Clear and redraw all windows
+ */
+void nreset_all();
+
+/**
+ * Clear the given window
+ * From 0 to #ofwindows - 1
+ * from left to right
+ */
+void nreset(int w);
 
 /**
  * Free the resouces
