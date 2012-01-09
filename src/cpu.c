@@ -2,12 +2,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <assert.h>
 
 #include "ncurses_ui.h"
 #include "cpu.h"
 #include "instruction_issue_unit.h"
 
-//These two, are used to force the clock rate uppon the units
+//These two, are used to the units according to cpu clock.
 pthread_mutex_t clk_mtx;
 pthread_cond_t pulse;
 
@@ -28,6 +29,8 @@ int main(int argc, char **argv)
     titles[2] = "Integer unit";
     titles[3] = "Float unit";
 
+    assert(argc > 1);
+
     /* Redirect stderr to a file */
     stderr_out = freopen("stderr.out", "w", stderr);
     setbuf(stderr_out, NULL);
@@ -44,7 +47,7 @@ int main(int argc, char **argv)
 
     /* Start the threads */
     pthread_create(&clk, NULL, cpu_clock, NULL);
-    pthread_create(&iiu, NULL, instruction_issue, NULL);
+    pthread_create(&iiu, NULL, instruction_issue, argv[1]);
 
     pthread_join(clk, NULL);
     pthread_join(iiu, NULL);
@@ -86,8 +89,8 @@ void *cpu_clock(void *arg)
 
         sleep(1);
         pthread_cond_broadcast(&pulse);
-        fprintf(stderr, "tick [%d]\n", cur_clk++);
-
+//        fprintf(stderr, "tick [%d]\n", cur_clk);
+        cur_clk++;
         pthread_mutex_lock(&pause_mtx);        
     }
 }
