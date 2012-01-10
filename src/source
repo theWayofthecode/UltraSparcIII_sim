@@ -1,2 +1,2 @@
-ADD $g0 1 $l0
-ADD $l0 $l0 $o0
+ADD %g0 1 %l0
+ADD %l0 %l0 %o0

@@ -195,7 +195,7 @@ void dec_add()
     _ci->op3 = 0;
     _ci->rs1 = dec_reg(op1);
     _ci->rd = dec_reg(op3);
-    if (op2[0] == '$') {
+    if (op2[0] == '%') {
         _ci->i = 0;
         _ci->rs2 = dec_reg(op2);
     } else {
@@ -209,7 +209,7 @@ int dec_reg(char *reg)
 {
     int ireg;
 
-    assert(reg[0] == '$');
+    assert(reg[0] == '%');
 
     ireg = reg[2] - 48; //ascii to int
     if (reg[1] == 'g') {
@@ -256,7 +256,7 @@ int enqueue(instruct *in)
 {
     instruct *it;
 
-    if (_queue->i > 19 || in == NULL) //queue is full
+    if (_queue->i > 15 || in == NULL) //queue is full
         return 0;
 
     for(it = _queue; it->next != _queue; it = it->next) {
