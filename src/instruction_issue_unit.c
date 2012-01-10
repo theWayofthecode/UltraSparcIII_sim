@@ -11,7 +11,7 @@
  * Instruction data structure.
  * Field description [SPARCv9 p.87]
  */
-typedef struct instruct { //Format3. The others with unions.
+typedef struct instruct { //Format3. The other with unions.
     int op;
     int rd;
     int op3;
@@ -34,7 +34,7 @@ typedef struct instruct { //Format3. The others with unions.
  */
 
 // Execution stages function array 
-void (*_exec_stages[6])(void);
+static void (*_exec_stages[6])(void);
 
 // Assembly code source file
 FILE *_src;
@@ -45,7 +45,7 @@ instruct *_ci = NULL;
 //Instruction Queue
 instruct *_queue = NULL;
 
-void init(char *file_name);
+static void init(char *file_name);
 
 /**
  * Instruction issue unit execution
@@ -88,8 +88,8 @@ void *instruction_issue(void *arg)
     int stage;
 
     init((char *)arg);
+    
     stage = 0;
-
     while (1) {
         _exec_stages[stage]();
         disp_queue();
@@ -97,7 +97,6 @@ void *instruction_issue(void *arg)
         //Loop logistics
         clk_cycle();
         stage = (stage + 1) % 6;
-        nreset(0);
     }
 }
 
@@ -118,6 +117,9 @@ void init(char *file_name)
     _queue->next = _queue;
 }
 
+/**
+ * Execution stages
+ */
 void address_generation()
 {
     fprintf(stderr, "[IIU]:Address generation\n");
@@ -265,8 +267,6 @@ int enqueue(instruct *in)
     it->next = in;
     _queue->i++;
 
-    fprintf(stderr, "enqueued %s\n", in->string);
-
     return 1;
 }
 
@@ -285,6 +285,7 @@ void disp_queue()
     int i;
     instruct *in;
 
+    nreset(0); //clear the IIU subwindow
     in = _queue->next;
     for (i = 0; i < _queue->i; i++) {
         nprintf(0, "%d] %s\n", i, in->string);

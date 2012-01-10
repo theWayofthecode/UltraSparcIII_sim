@@ -7,6 +7,7 @@
 #include "ncurses_ui.h"
 #include "cpu.h"
 #include "instruction_issue_unit.h"
+#include "integer_unit.h"
 
 //These two, are used to the units according to cpu clock.
 pthread_mutex_t clk_mtx;
@@ -22,14 +23,14 @@ void *cpu_clock(void *arg);
 int main(int argc, char **argv)
 {
     FILE *stderr_out;
-    pthread_t clk, iiu;
+    pthread_t clk, iiu, iu;
     char **titles = (char **)calloc(4, sizeof(char *));
     titles[0] = "Instruction Issue unit";
     titles[1] = "Data cache unit";
     titles[2] = "Integer unit";
     titles[3] = "Float unit";
 
-    assert(argc > 1);
+    assert(argc > 1); //assembly source path required
 
     /* Redirect stderr to a file */
     stderr_out = freopen("stderr.out", "w", stderr);
@@ -38,7 +39,7 @@ int main(int argc, char **argv)
     /* Init User interface */
     init_ncurses(4, titles);
     //27=Esc
-    init_key_ctrls(3, 'r', shutdown_cpu, 27, shutdown_cpu, ' ', pause_cpu);
+    init_key_ctrls(2, 27, shutdown_cpu, ' ', pause_cpu);
 
     /* Init  variables */
     pthread_mutex_init(&clk_mtx, NULL);
@@ -48,6 +49,7 @@ int main(int argc, char **argv)
     /* Start the threads */
     pthread_create(&clk, NULL, cpu_clock, NULL);
     pthread_create(&iiu, NULL, instruction_issue, argv[1]);
+    pthread_create(&iu, NULL, integer, NULL);
 
     pthread_join(clk, NULL);
     pthread_join(iiu, NULL);
@@ -88,9 +90,10 @@ void *cpu_clock(void *arg)
         pthread_mutex_unlock(&pause_mtx);        
 
         sleep(1);
+        fprintf(stderr, "\n{%d}<--clock-----------------\n", cur_clk);
         pthread_cond_broadcast(&pulse);
-//        fprintf(stderr, "tick [%d]\n", cur_clk);
         cur_clk++;
+        
         pthread_mutex_lock(&pause_mtx);        
     }
 }
