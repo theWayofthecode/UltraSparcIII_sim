@@ -9,6 +9,7 @@
 #include "instruction_issue_unit.h"
 #include "integer_unit.h"
 
+int _RW = 0;
 //These two, are used to the units according to cpu clock.
 pthread_mutex_t clk_mtx;
 pthread_cond_t pulse;
@@ -16,9 +17,11 @@ pthread_cond_t pulse;
 //Used to freeze the CPU
 pthread_mutex_t pause_mtx = PTHREAD_MUTEX_INITIALIZER;
 
+void init();
 void shutdown_cpu();
 void pause_cpu();
 void *cpu_clock(void *arg);
+void disp__IWRF();
 
 int main(int argc, char **argv)
 {
@@ -26,7 +29,7 @@ int main(int argc, char **argv)
     pthread_t clk, iiu, iu;
     char **titles = (char **)calloc(4, sizeof(char *));
     titles[0] = "Instruction Issue unit";
-    titles[1] = "Data cache unit";
+    titles[1] = "Integer Working Register File";
     titles[2] = "Integer unit";
     titles[3] = "Float unit";
 
@@ -45,6 +48,9 @@ int main(int argc, char **argv)
     pthread_mutex_init(&clk_mtx, NULL);
     pthread_mutex_init(&pause_mtx, NULL);
     pthread_cond_init(&pulse, NULL);
+    
+    /* Init cpu */
+    init();
 
     /* Start the threads */
     pthread_create(&clk, NULL, cpu_clock, NULL);
@@ -53,8 +59,18 @@ int main(int argc, char **argv)
 
     pthread_join(clk, NULL);
     pthread_join(iiu, NULL);
+    pthread_join(iu, NULL);
     
     return 0;
+}
+
+void init()
+{
+    int i;
+    
+    for (i = 0; i < 32; i++) {
+        _IWRF[i] = 0;
+    }
 }
 
 void shutdown_cpu()
@@ -91,6 +107,7 @@ void *cpu_clock(void *arg)
 
         sleep(1);
         fprintf(stderr, "\n{%d}<--clock-----------------\n", cur_clk);
+        disp__IWRF();
         pthread_cond_broadcast(&pulse);
         cur_clk++;
         
@@ -101,4 +118,15 @@ void *cpu_clock(void *arg)
 void clk_cycle()
 {
     pthread_cond_wait(&pulse, &clk_mtx);
+}
+
+void disp__IWRF()
+{
+    int i;
+
+    nreset(0);
+    printf("Register Window #%d\n--------------------\n", _RW);
+    for (i = 0; i < 32; i++) {
+        nprintf(1, "[%d] %d\n", i, _IWRF[i]);
+    }
 }

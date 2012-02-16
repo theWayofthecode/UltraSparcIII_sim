@@ -21,10 +21,8 @@ static void init();
  * Integer unit execution
  * stages.
  */
-//R
-void register_file_read();
 //E
-void integer_execution();
+void execute();
 //C
 void data_cache_access();
 //M
@@ -52,32 +50,26 @@ void *integer(void *arg)
         
         //Loop logistics
         clk_cycle();
-        stage = (stage + 1) % 8;
+        stage = (stage + 1) % 7;
     }
 }
 
 void init()
 {
-    _exec_stages[0] = register_file_read;
-    _exec_stages[1] = integer_execution;
-    _exec_stages[2] = data_cache_access;
-    _exec_stages[3] = memory_bypass;
-    _exec_stages[4] = working_register_file_write;
-    _exec_stages[5] = pipe_extend;
-    _exec_stages[6] = trap;
-    _exec_stages[7] = done;
+    _exec_stages[0] = execute;
+    _exec_stages[1] = data_cache_access;
+    _exec_stages[2] = memory_bypass;
+    _exec_stages[3] = working_register_file_write;
+    _exec_stages[4] = pipe_extend;
+    _exec_stages[5] = trap;
+    _exec_stages[6] = done;
 }
 
 /**
  * Execution stages
  */
 
-void register_file_read()
-{
-    fprintf(stderr, "[IU]: Register file read\n");
-}
-
-void integer_execution()
+void execute()
 {
     fprintf(stderr, "[IU]: Integer execution\n");
 }

@@ -8,10 +8,23 @@
 #include "instruction_issue_unit.h"
 
 /**
+ * Pipeline codes
+ */
+enum pipeline {
+    A0,
+    A1,
+    BR,
+    MS,
+    FGM,
+    FGA,
+    NONE
+};
+
+/**
  * Instruction data structure.
  * Field description [SPARCv9 p.87]
  */
-typedef struct instruct { //Format3. The other with unions.
+typedef struct instruct{ //Format3. The other with unions.
     int op;
     int rd;
     int op3;
@@ -25,8 +38,17 @@ typedef struct instruct { //Format3. The other with unions.
     /* Sim related */
     //Instruction's string representation
     char *string;
-    struct instruct *next;
 } instruct;
+
+/**
+ * Instruction group of 4
+ */
+typedef struct group{
+    instruct *inst[4];
+    enum pipeline pipe[4];
+
+    struct group *next;
+} group;
 
 /**
  * Globals.
@@ -34,16 +56,17 @@ typedef struct instruct { //Format3. The other with unions.
  */
 
 // Execution stages function array 
-static void (*_exec_stages[6])(void);
+static void (*_exec_stages[7])(void);
 
 // Assembly code source file
 FILE *_src;
 
 // Current instruction in process
-instruct *_ci = NULL;
+instruct *_ci[4];
 
 //Instruction Queue
-instruct *_queue = NULL;
+group *_queue = NULL;
+int items_in_Q;
 
 static void init(char *file_name);
 
@@ -54,15 +77,17 @@ static void init(char *file_name);
 //A
 void address_generation();
 //P
-void instruction_prefetch();
+void preliminary_fetch();
 //F
-void instruction_fetch();
+void fetch();
 //B
-void branch_target_calculation();
+void branch_target_computation();
 //I
-void instruction_decode();
+void instruction_group_formation();
 //J
-void instruction_steer();
+void instruction_group_staging();
+//R
+void dispatch_and_register_access();
 
 /**
  * Instruction decoders
@@ -75,9 +100,11 @@ int dec_reg(char *reg);
  */
 
 instruct *new_instruction();
+group *new_group();
 void del_instruction(instruct *in);
-int enqueue(instruct *in);
-void dequeue(instruct *in);
+void del_group(group *in);
+int enqueue(group *in);
+group *dequeue();
 void disp_queue();
 
 /**
@@ -96,91 +123,130 @@ void *instruction_issue(void *arg)
         
         //Loop logistics
         clk_cycle();
-        stage = (stage + 1) % 6;
+        stage = (stage + 1) % 7;
     }
 }
 
 void init(char *file_name)
 {
+    int i;
+
     _exec_stages[0] = address_generation;
-    _exec_stages[1] = instruction_prefetch;
-    _exec_stages[2] = instruction_fetch;
-    _exec_stages[3] = branch_target_calculation;
-    _exec_stages[4] = instruction_decode;
-    _exec_stages[5] = instruction_steer;
+    _exec_stages[1] = preliminary_fetch;
+    _exec_stages[2] = fetch;
+    _exec_stages[3] = branch_target_computation;
+    _exec_stages[4] = instruction_group_formation;
+    _exec_stages[5] = instruction_group_staging;
+    _exec_stages[6] = dispatch_and_register_access;
 
     _src = fopen(file_name, "r");
     assert(_src != NULL);
 
-    _queue = new_instruction(); //sentinel node
-    _queue->i = 0; //number of instruction nodes
+    _queue = new_group(); //sentinel node
+    items_in_Q = 0;
     _queue->next = _queue;
+
+    for (i = 0; i < 4; i++) {
+        _ci[i] = NULL;
+    }
 }
 
 /**
- * Execution stages
+ * Instruction unit stages
  */
+
+//A
 void address_generation()
 {
     fprintf(stderr, "[IIU]:Address generation\n");
 }
 
-void instruction_prefetch()
+//P
+void preliminary_fetch()
 {
     fprintf(stderr, "[IIU]:Instruction prefetch\n");
 }
 
-void instruction_fetch()
+//F
+void fetch()
 {
+    int i;
     char str[32];
     fprintf(stderr, "[IIU]:Instruction fetch\n");
 
     if (feof(_src))
         return;
-    
-    fscanf(_src, "%[^\n]\n", str);
-    _ci = new_instruction();
-    _ci->string = strdup(str);
+   
+    for (i = 0; i < 4; i++) {
+        fscanf(_src, "%[^\n]\n", str);
+        _ci[i] = new_instruction();
+        _ci[i]->string = strdup(str);
+    }
 }
 
-void branch_target_calculation()
+//B
+void branch_target_computation()
 {
     fprintf(stderr, "[IIU]:Branch target calculation\n");
 }
 
-void instruction_decode()
+//I
+void instruction_group_formation()
 {
+    int i, j = 0;
     char cmd[16];
     int items = 0;
+    group *gp = new_group();
+    enum pipeline av_pipe = A0;
 
     fprintf(stderr, "[IIU]:Instruction decode\n");
-    if (_ci == NULL)
-        return;
 
-    items = sscanf(_ci->string, "%s", cmd); 
-    assert(items == 1);
+    for (i = 0; i < 4; i++) {
+        if (_ci[i] == NULL)
+            return;
 
-    if (!(strcmp(cmd, "ADD"))) {
-        dec_add();
-    } else {
-        assert(0);
+        items = sscanf(_ci[i]->string, "%s", cmd); 
+        assert(items == 1);
+
+        if (!(strcmp(cmd, "ADD"))) {
+            dec_add(_ci[i]);
+            gp->inst[j] = _ci[i];
+            gp->pipe[j] = av_pipe;
+            av_pipe++;
+            j++;
+        } else {
+            assert(0);
+        }
+
+        if (av_pipe != A0 && av_pipe != A1) {
+            if (!enqueue(gp))
+               fprintf(stderr, "[IIU] queue is full\n"); 
+            gp = new_group();
+            av_pipe = A0;
+            j = 0;
+        }
     }
-
-    if (!enqueue(_ci))
-       fprintf(stderr, "[IIU] queue is full\n"); 
 }
 
-void instruction_steer()
+//J
+void instruction_group_staging()
 {
     fprintf(stderr, "[IIU]:Instruction steer\n");
 }
+
+//R
+void dispatch_and_register_access()
+{
+    fprintf(stderr, "[IIU]:Dispatch and register access\n");
+}
+    
 
 /**
  * Instruction Decoders
  */
 
 //SPARCv9 [p.160]
-void dec_add()
+void dec_add(instruct *inst)
 {
     char cmd[16];
     char op1[16];
@@ -188,19 +254,19 @@ void dec_add()
     char op3[16];
     int items;
 
-    items = sscanf(_ci->string, "%s %s %s %s", cmd, op1, op2, op3); 
+    items = sscanf(inst->string, "%s %s %s %s", cmd, op1, op2, op3); 
     assert(items == 4);
 
-    _ci->op = 2;
-    _ci->op3 = 0;
-    _ci->rs1 = dec_reg(op1);
-    _ci->rd = dec_reg(op3);
+    inst->op = 2;
+    inst->op3 = 0;
+    inst->rs1 = dec_reg(op1);
+    inst->rd = dec_reg(op3);
     if (op2[0] == '%') {
-        _ci->i = 0;
-        _ci->rs2 = dec_reg(op2);
+        inst->i = 0;
+        inst->rs2 = dec_reg(op2);
     } else {
-        _ci->i = 1;
-        _ci->simm13 = atoi(op2);
+        inst->i = 1;
+        inst->simm13 = atoi(op2);
     }
 }
 
@@ -246,17 +312,43 @@ instruct *new_instruction()
     return (new);
 }
 
+group *new_group()
+{
+    int i;
+    group *new;
+
+    new = (group *)malloc(sizeof(group));
+    assert(new != NULL);
+
+    for (i = 0; i < 4; i++) {
+        new->inst[i] = NULL;
+        new->pipe[i] = NONE;
+    }
+
+    return new;
+}
+
 void del_instruction(instruct *in)
 {
     free(in->string);
     free(in);
 }
 
-int enqueue(instruct *in)
+void del_group(group *in)
 {
-    instruct *it;
+    int i;
 
-    if (_queue->i > 15 || in == NULL) //queue is full
+    for (i = 0; i < 4; i++)
+        del_instruction(in->inst[i]);
+        
+    free(in);
+}
+
+int enqueue(group *in)
+{
+    group *it;
+
+    if (items_in_Q >= 4 || in == NULL) //queue is full
         return 0;
 
     for(it = _queue; it->next != _queue; it = it->next) {
@@ -265,30 +357,37 @@ int enqueue(instruct *in)
     }
     in->next = it->next;
     it->next = in;
-    _queue->i++;
 
+    items_in_Q++;
     return 1;
 }
 
-void dequeue(instruct *in)
+group *dequeue()
 {
-    instruct *it;
+    group *gp;
 
-    for(it = _queue; it->next != in; it = it->next);
-    it->next = in->next;
-    del_instruction(in);
-    _queue->i--;
+    gp = _queue->next;
+    _queue->next = gp->next; 
+    gp->next = NULL;
+    items_in_Q--;
+    return gp;
 }
 
 void disp_queue()
 {
-    int i;
-    instruct *in;
+    int i, j;
+    group *gp;
 
     nreset(0); //clear the IIU subwindow
-    in = _queue->next;
-    for (i = 0; i < _queue->i; i++) {
-        nprintf(0, "%d] %s\n", i, in->string);
-        in = in->next;
+    gp = _queue->next;
+    for (i = 0; i < items_in_Q; i++) {
+        for (j = 0; j < 4; j++) {
+            if (gp->inst[j] != NULL) {
+                nprintf(0, "%d] %s, pl{%d}\n", i, gp->inst[j]->string, gp->pipe[j]);
+            } else {
+                nprintf(0, "%d] NONE\n", i);
+            }
+        }
+        gp = gp->next;
     }
 }
